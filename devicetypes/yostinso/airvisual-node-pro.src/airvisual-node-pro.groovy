@@ -22,7 +22,8 @@ metadata {
         capability "Polling"
         capability "Refresh"
         
-        // TODO: humidity, temp
+        // attribute "humidity", "number" // from capability Relative Humidity Measurement
+        // attribute "temperature", "number" // from capability Temperature Measurement
 
 		// attribute "airQuality", "number" // from capability Air Quality Sensore
         attribute "aqiLevel", "enum", ["Good", "Moderate", "USG", "Unhealthy", "V. Unhealthy", "Hazardous"]
@@ -98,6 +99,14 @@ metadata {
         concTile("HourlyCO2Tile", "device.hourlyCo2DisplayValue", "Hourly CO2")
         concTile("HourlyPM10Tile", "device.hourlyPm10DisplayValue", "Hourly PM")
         
+        multiAttributeTile(name: "TempAndHumidityTile", type: "thermostat", width: 4, height: 2) {
+        	tileAttribute("device.temperature", key: "PRIMARY_CONTROL") {
+            	attributeState("temp", label: '${currentValue}', unit: "dF", defaultState: true)
+            }
+            tileAttribute("device.humidity", key: "SECONDARY_CONTROL") {
+            	attributeState("humidity", label: '${currentValue}%', unit: "%", defaultState: true)
+            }
+        }
         // TODO: Unified quality?
             	
         standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: flat, width: 2, height: 2) {
@@ -108,7 +117,7 @@ metadata {
             "AQITile",  "CO2Tile", "PM10Tile",
             "PM25ConcTitle", "CO2ConcTitle", "PM10ConcTitle",
             "HourlyAQITile", "HourlyCO2Tile", "HourlyPM10Tile",
-            "refresh"
+            "TempAndHumidityTile", "refresh"
         ])
 	}
 }
@@ -152,7 +161,9 @@ def poll() {
         hourlypm10: Math.round(lastHour.p1_sum / lastHour.p1_count),
         hourlyco2: Math.round(lastHour.co_sum / lastHour.co_count),
         outdooraqi: outdoor.aqius,
-        outdoorpm25: outdoor.p2.conc
+        outdoorpm25: outdoor.p2.conc,
+        humidity: d.current.hm,
+        temperature: cToF(d.current.tp)
     ]
     
     log.debug "Air Quality: ${values}"
@@ -167,7 +178,7 @@ def poll() {
     sendEvent(name: "co2", displayed: false, 			value: values.co2, 			description: "CO2: ${d.current.co} ppm")
     sendEvent(name: "hourlyco2", displayed: false, 		value: values.hourlyco2, 	description: "Hourly CO2: ${values.hourlyco2} ppm")
     
-    sendEvent(name: "pm10Aqi", 							value: currentAQI.pm10, 		description: aqiDescription(currentAQI))
+    sendEvent(name: "pm10Aqi", 							value: currentAQI.pm10, 	description: aqiDescription(currentAQI))
     sendEvent(name: "pm10AqiLevel",						value: values.pm10AQIText, 	description: aqiDescription(currentAQI))
     sendEvent(name: "pm10", displayed: false, 			value: values.pm10,			description: "PM10: ${d.current.p1} ug/m^3")
     sendEvent(name: "hourlypm25", displayed: false, 	value: values.hourlypm25, 	description: "Hourly PM2.5: ${values.hourlypm25} ug/m^3")
@@ -176,6 +187,9 @@ def poll() {
     sendEvent(name: "outdooraqi", displayed: false, 	value: values.outdooraqi, 	description: "Outdoor AQI: ${values.outdooraqi} (${outdoor.mainus})")
     sendEvent(name: "outdoorpm25", displayed: false, 	value: values.outdoorpm25,	description: "Outdoor PM2.5: ${values.outdoorpm25} ug/m^3")
     
+    sendEvent(name: "humidity", displayed: false, 		value: values.humidity,		description: "Humidity: ${values.humidity}%")
+    sendEvent(name: "temperature", displayed: false, 	value: values.temperature,	description: "Temperature: ${values.temperature} dF")
+    
     // Display only
     sendEvent(name: "pm25DisplayValue", displayed: false, value: "${currentAQI.pm25}\n(${values.pm25} ug/m3)")
     sendEvent(name: "pm10DisplayValue", displayed: false, value: "${currentAQI.pm10}\n(${values.pm10} ug/m3)")
@@ -183,6 +197,10 @@ def poll() {
     sendEvent(name: "hourlyPm25DisplayValue", displayed: false, value: "${hourlyAQI.pm25}\n(${values.hourlypm25} ug/m3)")
     sendEvent(name: "hourlyPm10DisplayValue", displayed: false, value: "${hourlyAQI.pm10}\n(${values.hourlypm10} ug/m3)")
     sendEvent(name: "hourlyCo2DisplayValue", displayed: false, value: "${hourlyAQI.co2}\n(${values.hourlyco2} ppm)")
+}
+
+def cToF(deg) {
+	return round1(deg * (9.0/5.0) + 32)
 }
 
 def rangeAQI() { [  [1, 50],  [51, 100],   [101, 150],   [151, 200],    [201, 300],     [301, 400], [401, 500] ] }
@@ -202,13 +220,13 @@ int calcAQI(c, ranges) {
 	return Math.round(((iHigh - iLow) / (cHigh - cLow))*(c - cLow) + iLow)
 }
 
-def roundP25(bigD) {
+def round1(bigD) {
 	return new BigDecimal(bigD).setScale(1, BigDecimal.ROUND_HALF_UP)
 }
 
 def currentAQI(d) {
 	return [
-        pm25: calcAQI(roundP25(d.current.p2), rangePM25()),
+        pm25: calcAQI(round1(d.current.p2), rangePM25()),
         pm10: calcAQI(Math.round(d.current.p1), rangePM10()),
         co2: calcAQI(Math.round(d.current.co), rangeCO2())
     ]
@@ -219,7 +237,7 @@ def hourlyAQI(d) {
     def p10 = d.historical.hourly[0].p1_sum / d.historical.hourly[0].p1_count
     def co = d.historical.hourly[0].co_sum / d.historical.hourly[0].co_count
     return [
-    	pm25: calcAQI(roundP25(p25), rangePM25()),
+    	pm25: calcAQI(round1(p25), rangePM25()),
     	pm10: calcAQI(Math.round(p10), rangePM10()),
     	co2: Math.round(calcAQI(Math.round(co), rangeCO2()))
     ]

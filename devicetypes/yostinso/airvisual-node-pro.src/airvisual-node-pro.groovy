@@ -97,7 +97,7 @@ metadata {
         
         concTile("HourlyAQITile", "device.hourlyPm25DisplayValue", "Hourly PM2.5")
         concTile("HourlyCO2Tile", "device.hourlyCo2DisplayValue", "Hourly CO2")
-        concTile("HourlyPM10Tile", "device.hourlyPm10DisplayValue", "Hourly PM")
+        concTile("HourlyPM10Tile", "device.hourlyPm10DisplayValue", "Hourly PM10")
         
         multiAttributeTile(name: "TempAndHumidityTile", type: "thermostat", width: 4, height: 2) {
         	tileAttribute("device.temperature", key: "PRIMARY_CONTROL") {
@@ -210,7 +210,7 @@ def rangeCO2() {  [ [0, 700], [701, 1000], [1001, 1500], [1501, 2500],  [2501, 5
 
 int calcAQI(c, ranges) {
 	def idx = ranges.findIndexOf { it ->
-    	c > it[0] && c <= it[1]
+    	c >= it[0] && c <= it[1]
     }
     def AQI = rangeAQI()
     def iHigh = AQI[idx][1]

@@ -109,7 +109,7 @@ metadata {
         }
         // TODO: Unified quality?
             	
-        standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: flat, width: 2, height: 2) {
+        standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
         	state "default", action: "refresh.refresh", icon: "st.secondary.refresh"
         }
 		main("MainTile")
@@ -144,7 +144,7 @@ def poll() {
     def lastHour = d.historical.hourly[0]
     def outdoor = lastHour.outdoor_station
     
-    def wat = currentAQI.co2
+    if (!outdoor.p2) { outdoor.p2 = [ conc: 0 ] }
     
     def values = [
 		currentAQI: currentAQI,
